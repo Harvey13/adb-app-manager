@@ -1,0 +1,11 @@
+Allez sur github.com
+
+Cliquez sur "+" → "New repository"
+
+Donnez un nom à votre dépôt
+
+# Ajouter le dépôt distant (remplacez par votre URL)
+git remote add origin https://github.com/Harvey13/adb-app-manager.git
+
+# Pousser vers GitHub
+git push -u origin main
