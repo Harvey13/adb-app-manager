@@ -1,0 +1,29 @@
+{
+  "name": "adb-app-manager",
+  "version": "1.0.0",
+  "description": "Gestionnaire d'applications Android via ADB",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "electron": "^28.0.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.adb.appmanager",
+    "productName": "ADB App Manager",
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}

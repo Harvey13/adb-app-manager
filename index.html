@@ -1,0 +1,14 @@
+﻿<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>ADB App Manager</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:linear-gradient(135deg,#1e1e2e,#2d1b69);color:#fff;padding:20px}.container{max-width:1400px;margin:0 auto}h1{text-align:center;margin-bottom:30px}button{padding:12px 24px;margin:5px;border:none;border-radius:8px;cursor:pointer;font-weight:600}.btn-primary{background:#7c3aed;color:#fff}.btn-success{background:#10b981;color:#fff}.btn-danger{background:#ef4444;color:#fff}#appContent{background:rgba(255,255,255,0.1);padding:20px;border-radius:15px;margin-top:20px}</style>
+</head><body><div class="container"><h1>ðŸ¤– ADB Application Manager</h1>
+<button class="btn-primary" onclick="checkADB()">VÃ©rifier ADB</button>
+<button class="btn-success" onclick="checkDevices()" id="checkDeviceBtn">VÃ©rifier appareil</button>
+<button class="btn-primary" onclick="loadApps()" id="loadAppsBtn">Charger apps</button>
+<div id="appContent">Connectez votre appareil</div></div>
+<script>
+let apps=[];let deviceConnected=false;
+async function checkADB(){const r=await window.adb.checkADB();alert(r.success?'ADB OK':'ADB non trouvÃ©')}
+async function checkDevices(){const r=await window.adb.checkDevices();deviceConnected=r.success;alert(r.success?'Appareil connectÃ©':'Aucun appareil')}
+async function loadApps(){if(!deviceConnected)return alert('Connectez un appareil');const r=await window.adb.listPackages({});apps=r.packages||[];document.getElementById('appContent').innerHTML=apps.map(a=>`<div>${a.label} (${a.name})</div>`).join('')}
+</script></body></html>
