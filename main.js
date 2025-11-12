@@ -1,8 +1,44 @@
-﻿const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { exec } = require('child_process');
 const path = require('path');
 const util = require('util');
 const execPromise = util.promisify(exec);
+
+// Fonction utilitaire pour extraire l'utilisation mémoire d'une application
+async function getAppMemoryUsage(packageName) {
+  try {
+    const { stdout } = await execPromise(`adb shell dumpsys meminfo ${packageName} | grep -E "TOTAL|App Summary"`);
+    
+    // Exemple de sortie attendue :
+    // App Summary
+    //                        Pss(KB)
+    //                        -------
+    //           Java Heap:    12345
+    //         Native Heap:     6789
+    //                ...
+    //                TOTAL:   123456       TOTAL SWAP:    12345
+    
+    const lines = stdout.split('\n');
+    for (const line of lines) {
+      if (line.includes('TOTAL:')) {
+        const match = line.match(/TOTAL:\s+(\d+)/);
+        if (match && match[1]) {
+          return { 
+            success: true, 
+            memory: parseInt(match[1]) * 1024 // Convertir en octets
+          };
+        }
+      }
+    }
+    
+    return { success: false, error: 'Impossible de parser la sortie de dumpsys meminfo' };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: `Erreur lors de la récupération de l'utilisation mémoire: ${error.message}` 
+    };
+  }
+}
 
 let mainWindow;
 
@@ -209,6 +245,10 @@ ipcMain.handle('disable-app', async (event, packageName) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('get-app-memory-usage', async (event, packageName) => {
+  return await getAppMemoryUsage(packageName);
 });
 
 ipcMain.handle('clear-data', async (event, packageName) => {

@@ -317,6 +317,8 @@
     let runningApps = [];
     let currentFilter = 'all';
     let deviceConnected = false;
+    let sortColumn = '';
+    let sortDirection = 1; // 1 for ascending, -1 for descending
     
     function showNotification(message, type = 'info') {
       const notif = document.createElement('div');
@@ -359,6 +361,54 @@
       btn.disabled = false;
     }
     
+    // Fonction pour charger la mémoire d'une application de manière asynchrone
+    async function loadAppMemory(app) {
+      if (app.memoryUsage === undefined) {
+        const memInfo = await window.adb.getAppMemoryUsage(app.name);
+        app.memoryUsage = memInfo.success ? memInfo.memory : 0;
+        
+        // Mettre à jour l'affichage de cette ligne spécifique
+        const row = document.querySelector(`tr[data-package="${app.name}"]`);
+        if (row) {
+          const memoryCell = row.querySelector('td:nth-child(5)');
+          if (memoryCell) {
+            memoryCell.textContent = formatMemory(app.memoryUsage);
+          }
+        }
+      }
+      return app.memoryUsage;
+    }
+    
+    // Observateur d'intersection pour le chargement paresseux
+    let observer;
+    function setupIntersectionObserver() {
+      if (observer) observer.disconnect();
+      
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const row = entry.target;
+            const packageName = row.getAttribute('data-package');
+            if (packageName) {
+              const app = apps.find(a => a.name === packageName);
+              if (app) {
+                loadAppMemory(app);
+              }
+            }
+          }
+        });
+      }, {
+        root: null,
+        rootMargin: '200px',
+        threshold: 0.01
+      });
+      
+      // Observer toutes les lignes du tableau
+      document.querySelectorAll('tbody tr').forEach(row => {
+        observer.observe(row);
+      });
+    }
+    
     async function loadApps() {
       if (!deviceConnected) {
         showNotification('❌ Veuillez connecter un appareil d\'abord', 'error');
@@ -380,6 +430,10 @@
         }
         
         apps = packagesResult.packages;
+        // Initialiser memoryUsage à undefined pour toutes les applications
+        apps.forEach(app => {
+          app.memoryUsage = undefined;
+        });
         
         const runningResult = await window.adb.listRunning();
         if (runningResult.success) {
@@ -444,6 +498,63 @@
       renderApps();
     }
     
+    function sortApps(appsToSort) {
+      if (!sortColumn) return [...appsToSort];
+      
+      return [...appsToSort].sort((a, b) => {
+        let valA, valB;
+        
+        switch(sortColumn) {
+          case 'name':
+            valA = a.label || '';
+            valB = b.label || '';
+            return valA.localeCompare(valB) * sortDirection;
+            
+          case 'package':
+            valA = a.name || '';
+            valB = b.name || '';
+            return valA.localeCompare(valB) * sortDirection;
+            
+          case 'type':
+            valA = a.system ? 1 : 0;
+            valB = b.system ? 1 : 0;
+            return (valA - valB) * sortDirection;
+            
+          case 'memory':
+            valA = a.memoryUsage || 0;
+            valB = b.memoryUsage || 0;
+            return (valA - valB) * sortDirection;
+            
+          default:
+            return 0;
+        }
+      });
+    }
+    
+    function toggleSort(column) {
+      if (sortColumn === column) {
+        sortDirection *= -1;
+      } else {
+        sortColumn = column;
+        sortDirection = 1;
+      }
+      renderApps();
+    }
+    
+    function formatMemory(bytes) {
+      if (!bytes) return 'N/A';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let size = parseFloat(bytes);
+      let unit = 0;
+      
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit++;
+      }
+      
+      return `${size.toFixed(1)} ${units[unit]}`;
+    }
+    
     function renderApps() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
       
@@ -467,20 +578,30 @@
         return;
       }
       
+      // Trier les applications
+      filtered = sortApps(filtered);
+      
       const html = `
         <table>
           <thead>
             <tr>
               <th>Statut</th>
-              <th>Nom</th>
-              <th>Package</th>
-              <th>Type</th>
+              <th onclick="toggleSort('name')" style="cursor: pointer;">
+                Nom ${sortColumn === 'name' ? (sortDirection > 0 ? '↑' : '↓') : ''}
+              </th>
+              <th onclick="toggleSort('package')" style="cursor: pointer;">
+                Package ${sortColumn === 'package' ? (sortDirection > 0 ? '↑' : '↓') : ''}
+              </th>
+              <th onclick="toggleSort('type')" style="cursor: pointer;">
+                Type ${sortColumn === 'type' ? (sortDirection > 0 ? '↑' : '↓') : ''}
+              </th>
+              <th>Mémoire</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             ${filtered.map(app => `
-              <tr>
+              <tr data-package="${app.name}">
                 <td>
                   ${runningApps.includes(app.name) ? '<span class="status-icon running"></span>' : ''}
                   ${!app.enabled ? '<span class="status-icon disabled"></span>' : ''}
@@ -488,6 +609,7 @@
                 <td><strong>${app.label}</strong></td>
                 <td><code style="font-size: 12px; color: #aaa;">${app.name}</code></td>
                 <td><span class="badge ${app.system ? 'badge-system' : 'badge-user'}">${app.system ? 'Système' : 'Utilisateur'}</span></td>
+                <td>Chargement...</td>
                 <td>
                   <div class="actions">
                     ${runningApps.includes(app.name) ? `<button class="action-btn btn-danger" onclick="forceStop('${app.name}')">⏹ Arrêter</button>` : ''}
@@ -509,6 +631,23 @@
       `;
       
       document.getElementById('appContent').innerHTML = html;
+      
+      // Configurer l'observateur d'intersection après le rendu
+      setupIntersectionObserver();
+      
+      // Charger la mémoire pour les premières applications visibles
+      const visibleRows = document.querySelectorAll('tbody tr:not([style*="display: none"])');
+      const firstVisibleRows = Array.from(visibleRows).slice(0, 10); // Charger les 10 premières
+      
+      firstVisibleRows.forEach(row => {
+        const packageName = row.getAttribute('data-package');
+        if (packageName) {
+          const app = apps.find(a => a.name === packageName);
+          if (app) {
+            loadAppMemory(app);
+          }
+        }
+      });
     }
     
     async function forceStop(packageName) {

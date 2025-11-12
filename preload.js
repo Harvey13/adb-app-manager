@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('adb', {
   enableApp: (packageName) => ipcRenderer.invoke('enable-app', packageName),
   disableApp: (packageName) => ipcRenderer.invoke('disable-app', packageName),
   clearData: (packageName) => ipcRenderer.invoke('clear-data', packageName),
-  launchApp: (packageName) => ipcRenderer.invoke('launch-app', packageName)
+  launchApp: (packageName) => ipcRenderer.invoke('launch-app', packageName),
+  getAppMemoryUsage: (packageName) => ipcRenderer.invoke('get-app-memory-usage', packageName)
 });
