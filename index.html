@@ -1,14 +1,578 @@
-﻿<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>ADB App Manager</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:linear-gradient(135deg,#1e1e2e,#2d1b69);color:#fff;padding:20px}.container{max-width:1400px;margin:0 auto}h1{text-align:center;margin-bottom:30px}button{padding:12px 24px;margin:5px;border:none;border-radius:8px;cursor:pointer;font-weight:600}.btn-primary{background:#7c3aed;color:#fff}.btn-success{background:#10b981;color:#fff}.btn-danger{background:#ef4444;color:#fff}#appContent{background:rgba(255,255,255,0.1);padding:20px;border-radius:15px;margin-top:20px}</style>
-</head><body><div class="container"><h1>ðŸ¤– ADB Application Manager</h1>
-<button class="btn-primary" onclick="checkADB()">VÃ©rifier ADB</button>
-<button class="btn-success" onclick="checkDevices()" id="checkDeviceBtn">VÃ©rifier appareil</button>
-<button class="btn-primary" onclick="loadApps()" id="loadAppsBtn">Charger apps</button>
-<div id="appContent">Connectez votre appareil</div></div>
-<script>
-let apps=[];let deviceConnected=false;
-async function checkADB(){const r=await window.adb.checkADB();alert(r.success?'ADB OK':'ADB non trouvÃ©')}
-async function checkDevices(){const r=await window.adb.checkDevices();deviceConnected=r.success;alert(r.success?'Appareil connectÃ©':'Aucun appareil')}
-async function loadApps(){if(!deviceConnected)return alert('Connectez un appareil');const r=await window.adb.listPackages({});apps=r.packages||[];document.getElementById('appContent').innerHTML=apps.map(a=>`<div>${a.label} (${a.name})</div>`).join('')}
-</script></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADB Application Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d1b69 100%);
+      color: #fff;
+      overflow-x: hidden;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      text-align: center;
+      padding: 30px 0;
+    }
+    
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+    
+    .controls {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+    }
+    
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .btn-primary {
+      background: #7c3aed;
+      color: white;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-warning {
+      background: #f59e0b;
+      color: white;
+    }
+    
+    .status {
+      margin-left: auto;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    
+    .status.connected {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+    
+    .status.disconnected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+    
+    .filters {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .search-bar {
+      width: 100%;
+      padding: 12px 20px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: white;
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+    
+    .filter-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .filter-btn {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 2px solid transparent;
+    }
+    
+    .filter-btn.active {
+      background: #7c3aed;
+      border-color: #7c3aed;
+    }
+    
+    .app-list {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      overflow: hidden;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      text-align: left;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    th:hover {
+      background: rgba(0, 0, 0, 0.5);
+    }
+    
+    td {
+      padding: 15px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge-system {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+    
+    .badge-user {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .action-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 18px;
+    }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 25px;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+      animation: slideIn 0.3s;
+      max-width: 400px;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    .notification.success { background: #10b981; }
+    .notification.error { background: #ef4444; }
+    .notification.info { background: #3b82f6; }
+    
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .status-icon {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-icon.running { background: #10b981; }
+    .status-icon.disabled { background: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 ADB Application Manager</h1>
+      <p>Gérez vos applications Android via ADB</p>
+    </header>
+    
+    <div class="controls">
+      <button class="btn-primary" onclick="checkADB()">
+        Vérifier ADB
+      </button>
+      <button class="btn-success" onclick="checkDevices()" id="checkDeviceBtn">
+        Vérifier l'appareil
+      </button>
+      <button class="btn-primary" onclick="loadApps()" id="loadAppsBtn" disabled>
+        <span class="spinner" id="loadingSpinner" style="display: none;"></span>
+        Charger les applications
+      </button>
+      <button class="btn-primary" onclick="refreshRunning()" id="refreshBtn" style="display: none;">
+        🔄 Rafraîchir statut
+      </button>
+      <div class="status disconnected" id="deviceStatus">
+        ● Déconnecté
+      </div>
+    </div>
+    
+    <div class="filters" id="filtersSection" style="display: none;">
+      <input type="text" class="search-bar" id="searchInput" placeholder="🔍 Rechercher une application..." oninput="filterApps()">
+      <div class="filter-buttons">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">Toutes</button>
+        <button class="filter-btn" data-filter="user" onclick="setFilter('user')">Utilisateur</button>
+        <button class="filter-btn" data-filter="system" onclick="setFilter('system')">Système</button>
+        <button class="filter-btn" data-filter="running" onclick="setFilter('running')">En cours</button>
+        <button class="filter-btn" data-filter="disabled" onclick="setFilter('disabled')">Désactivées</button>
+      </div>
+    </div>
+    
+    <div class="app-list">
+      <div id="appContent" class="loading">
+        Connectez votre appareil Android via USB et activez le débogage USB
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    let apps = [];
+    let runningApps = [];
+    let currentFilter = 'all';
+    let deviceConnected = false;
+    
+    function showNotification(message, type = 'info') {
+      const notif = document.createElement('div');
+      notif.className = `notification ${type}`;
+      notif.textContent = message;
+      document.body.appendChild(notif);
+      
+      setTimeout(() => notif.remove(), 3000);
+    }
+    
+    async function checkADB() {
+      const result = await window.adb.checkADB();
+      if (result.success) {
+        showNotification('✅ ADB détecté: ' + result.version.split('\n')[0], 'success');
+      } else {
+        showNotification('❌ ' + result.error, 'error');
+      }
+    }
+    
+    async function checkDevices() {
+      const btn = document.getElementById('checkDeviceBtn');
+      btn.disabled = true;
+      
+      const result = await window.adb.checkDevices();
+      
+      if (result.success && result.devices.length > 0) {
+        deviceConnected = true;
+        document.getElementById('deviceStatus').className = 'status connected';
+        document.getElementById('deviceStatus').textContent = `● Connecté: ${result.devices[0].id}`;
+        document.getElementById('loadAppsBtn').disabled = false;
+        showNotification(`✅ Appareil connecté: ${result.devices[0].id}`, 'success');
+      } else {
+        deviceConnected = false;
+        document.getElementById('deviceStatus').className = 'status disconnected';
+        document.getElementById('deviceStatus').textContent = '● Déconnecté';
+        document.getElementById('loadAppsBtn').disabled = true;
+        showNotification('❌ Aucun appareil détecté', 'error');
+      }
+      
+      btn.disabled = false;
+    }
+    
+    async function loadApps() {
+      if (!deviceConnected) {
+        showNotification('❌ Veuillez connecter un appareil d\'abord', 'error');
+        return;
+      }
+      
+      const btn = document.getElementById('loadAppsBtn');
+      const spinner = document.getElementById('loadingSpinner');
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+      
+      document.getElementById('appContent').innerHTML = '<div class="loading">Chargement des applications...<br>Cela peut prendre quelques minutes...</div>';
+      
+      try {
+        const packagesResult = await window.adb.listPackages({});
+        
+        if (!packagesResult.success) {
+          throw new Error(packagesResult.error);
+        }
+        
+        apps = packagesResult.packages;
+        
+        const runningResult = await window.adb.listRunning();
+        if (runningResult.success) {
+          // S'assurer que runningApps est un tableau
+          runningApps = Array.isArray(runningResult.running) ? 
+                      runningResult.running : 
+                      (runningResult.running ? Object.keys(runningResult.running) : []);
+        }
+        
+        for (let app of apps) {
+          const statusResult = await window.adb.checkAppStatus(app.name);
+          app.enabled = statusResult.success ? statusResult.enabled : true;
+        }
+        
+        document.getElementById('filtersSection').style.display = 'block';
+        document.getElementById('refreshBtn').style.display = 'inline-flex';
+        renderApps();
+        showNotification(`✅ ${apps.length} applications chargées`, 'success');
+        
+      } catch (error) {
+        showNotification('❌ Erreur: ' + error.message, 'error');
+        document.getElementById('appContent').innerHTML = `<div class="loading">Erreur: ${error.message}</div>`;
+      }
+      
+      btn.disabled = false;
+      spinner.style.display = 'none';
+    }
+    
+    async function refreshRunning() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Rafraîchissement...';
+      
+      const runningResult = await window.adb.listRunning();
+      if (runningResult.success) {
+        // S'assurer que runningApps est un tableau
+        runningApps = Array.isArray(runningResult.running) ? 
+                    runningResult.running : 
+                    (runningResult.running ? Object.keys(runningResult.running) : []);
+        renderApps();
+        showNotification(`✅ Statut rafraîchi - ${runningApps.length} apps en cours`, 'success');
+      } else {
+        showNotification('❌ Erreur lors du rafraîchissement', 'error');
+      }
+      
+      btn.disabled = false;
+      btn.textContent = '🔄 Rafraîchir statut';
+    }
+    
+    function filterApps() {
+      renderApps();
+    }
+    
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.filter === filter) {
+          btn.classList.add('active');
+        }
+      });
+      renderApps();
+    }
+    
+    function renderApps() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      
+      let filtered = apps.filter(app => {
+        const matchesSearch = app.name.toLowerCase().includes(searchTerm) || 
+                             app.label.toLowerCase().includes(searchTerm);
+        
+        if (!matchesSearch) return false;
+        
+        switch (currentFilter) {
+          case 'user': return !app.system;
+          case 'system': return app.system;
+          case 'running': return runningApps.includes(app.name);
+          case 'disabled': return !app.enabled;
+          default: return true;
+        }
+      });
+      
+      if (filtered.length === 0) {
+        document.getElementById('appContent').innerHTML = '<div class="loading">Aucune application trouvée</div>';
+        return;
+      }
+      
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Statut</th>
+              <th>Nom</th>
+              <th>Package</th>
+              <th>Type</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(app => `
+              <tr>
+                <td>
+                  ${runningApps.includes(app.name) ? '<span class="status-icon running"></span>' : ''}
+                  ${!app.enabled ? '<span class="status-icon disabled"></span>' : ''}
+                </td>
+                <td><strong>${app.label}</strong></td>
+                <td><code style="font-size: 12px; color: #aaa;">${app.name}</code></td>
+                <td><span class="badge ${app.system ? 'badge-system' : 'badge-user'}">${app.system ? 'Système' : 'Utilisateur'}</span></td>
+                <td>
+                  <div class="actions">
+                    ${runningApps.includes(app.name) ? `<button class="action-btn btn-danger" onclick="forceStop('${app.name}')">⏹ Arrêter</button>` : ''}
+                    ${!runningApps.includes(app.name) ? `<button class="action-btn btn-success" onclick="launchApp('${app.name}')">▶ Lancer</button>` : ''}
+                    <button class="action-btn ${app.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleApp('${app.name}', ${app.enabled})">
+                      ${app.enabled ? '⏸ Désactiver' : '▶ Activer'}
+                    </button>
+                    <button class="action-btn btn-warning" onclick="clearData('${app.name}')">🗑 Effacer données</button>
+                    ${!app.system ? `<button class="action-btn btn-danger" onclick="uninstallApp('${app.name}')">❌ Désinstaller</button>` : ''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div style="padding: 15px; text-align: center; color: #aaa;">
+          ${filtered.length} application(s) affichée(s) sur ${apps.length}
+        </div>
+      `;
+      
+      document.getElementById('appContent').innerHTML = html;
+    }
+    
+    async function forceStop(packageName) {
+      const result = await window.adb.forceStop(packageName);
+      if (result.success) {
+        runningApps = runningApps.filter(p => p !== packageName);
+        renderApps();
+        showNotification(`✅ ${packageName} arrêté`, 'success');
+      } else {
+        showNotification(`❌ Erreur: ${result.error}`, 'error');
+      }
+    }
+    
+    async function launchApp(packageName) {
+      const result = await window.adb.launchApp(packageName);
+      if (result.success) {
+        if (!runningApps.includes(packageName)) {
+          runningApps.push(packageName);
+        }
+        renderApps();
+        showNotification(`✅ ${packageName} lancé`, 'success');
+      } else {
+        showNotification(`❌ Erreur: ${result.error}`, 'error');
+      }
+    }
+    
+    async function uninstallApp(packageName) {
+      if (!confirm(`Voulez-vous vraiment désinstaller ${packageName} ?`)) return;
+      
+      const result = await window.adb.uninstallApp(packageName);
+      if (result.success) {
+        apps = apps.filter(app => app.name !== packageName);
+        renderApps();
+        showNotification(`✅ ${packageName} désinstallé`, 'success');
+      } else {
+        showNotification(`❌ Erreur: ${result.error}`, 'error');
+      }
+    }
+    
+    async function toggleApp(packageName, isEnabled) {
+      const result = isEnabled 
+        ? await window.adb.disableApp(packageName)
+        : await window.adb.enableApp(packageName);
+      
+      if (result.success) {
+        const app = apps.find(a => a.name === packageName);
+        if (app) app.enabled = !isEnabled;
+        renderApps();
+        showNotification(`✅ ${packageName} ${isEnabled ? 'désactivé' : 'activé'}`, 'success');
+      } else {
+        showNotification(`❌ Erreur: ${result.error}`, 'error');
+      }
+    }
+    
+    async function clearData(packageName) {
+      if (!confirm(`Voulez-vous vraiment effacer les données de ${packageName} ?`)) return;
+      
+      const result = await window.adb.clearData(packageName);
+      if (result.success) {
+        showNotification(`✅ Données effacées pour ${packageName}`, 'success');
+      } else {
+        showNotification(`❌ Erreur: ${result.error}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

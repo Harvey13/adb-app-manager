@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>ADB Debug</title>
+  <style>
+    body { font-family: monospace; background: #1e1e2e; color: #fff; padding: 20px; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    #output { background: #000; padding: 20px; margin-top: 20px; border-radius: 5px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>ADB Debug Tool</h1>
+  <button onclick="testDevices()">Test Devices</button>
+  <button onclick="testPackages()">Test Packages</button>
+  <button onclick="testRunning()">Test Running</button>
+  <div id="output"></div>
+
+  <script>
+    const output = document.getElementById('output');
+    
+    function log(msg) {
+      output.textContent += msg + '\n';
+      console.log(msg);
+    }
+    
+    async function testDevices() {
+      output.textContent = '';
+      log('=== TEST DEVICES ===');
+      try {
+        const result = await window.adb.checkDevices();
+        log('Success: ' + result.success);
+        log('Result: ' + JSON.stringify(result, null, 2));
+      } catch (e) {
+        log('ERROR: ' + e.message);
+      }
+    }
+    
+    async function testPackages() {
+      output.textContent = '';
+      log('=== TEST PACKAGES ===');
+      try {
+        const result = await window.adb.listPackages({});
+        log('Success: ' + result.success);
+        log('Packages count: ' + (result.packages ? result.packages.length : 0));
+        if (result.packages && result.packages.length > 0) {
+          log('First 3 packages:');
+          result.packages.slice(0, 3).forEach(p => {
+            log('  - ' + p.name + ' | ' + p.label + ' | ' + p.size + ' KB | System: ' + p.system);
+          });
+        }
+      } catch (e) {
+        log('ERROR: ' + e.message);
+        log('Stack: ' + e.stack);
+      }
+    }
+    
+    async function testRunning() {
+      output.textContent = '';
+      log('=== TEST RUNNING APPS ===');
+      try {
+        const result = await window.adb.listRunning();
+        log('Success: ' + result.success);
+        log('Type of running: ' + typeof result.running);
+        log('Is Array: ' + Array.isArray(result.running));
+        log('Running data: ' + JSON.stringify(result.running, null, 2));
+        
+        if (result.running) {
+          log('\nRunning apps count: ' + Object.keys(result.running).length);
+          const entries = Object.entries(result.running).slice(0, 5);
+          log('First 5 running apps:');
+          entries.forEach(([pkg, mem]) => {
+            log('  - ' + pkg + ' = ' + mem + ' KB');
+          });
+        }
+      } catch (e) {
+        log('ERROR: ' + e.message);
+        log('Stack: ' + e.stack);
+      }
+    }
+  </script>
+</body>
+</html>
